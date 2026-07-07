@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>디지털 포렌식: IP 추적 및 네트워크 분석 시뮬레이터</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet Map CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+        /* Custom scrollbar for cyberpunk style */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0f172a',
+                            dark: '#1e293b',
+                            light: '#334155',
+                            border: '#475569',
+                            accent: '#3b82f6',
+                            green: '#10b981',
+                            amber: '#f59e0b',
+                            red: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-cyber-bg text-slate-100 min-h-screen flex flex-col selection:bg-cyber-accent selection:text-white">
+
+    <!-- Navigation Bar -->
+    <header class="border-b border-cyber-border bg-cyber-dark/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="bg-cyber-accent text-white p-2.5 rounded-xl shadow-lg shadow-cyber-accent/30 animate-pulse">
+                <i class="fa-solid fa-shield-halved text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    네트워크 포렌식 실습실 <span class="text-xs px-2.5 py-0.5 bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 rounded-full font-semibold">시뮬레이터 v1.5</span>
+                </h1>
+                <p class="text-xs text-slate-400">이메일 헤더 분석 & P2P 네트워크 트래픽 분석을 통한 실시간 IP 추적</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+                <span class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+                실습 모드 활성화됨
+            </span>
+            <button onclick="resetSimulator()" class="px-3.5 py-1.5 border border-slate-600 hover:border-white text-slate-300 hover:text-white rounded-lg transition-all text-xs flex items-center gap-2">
+                <i class="fa-solid fa-arrow-rotate-left"></i> 실습 초기화
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex flex-1 flex-col lg:flex-row">
+        <!-- Sidebar Navigation -->
+        <aside class="w-full lg:w-80 border-r border-cyber-border bg-cyber-dark/40 p-4 shrink-0 flex flex-col gap-1.5">
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider px-3 mb-2">실습 목차</p>
+            
+            <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left bg-cyber-accent text-white font-medium shadow-md">
+                <i class="fa-solid fa-circle-info text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">1. 실습 개요 및 환경</span>
+                    <span class="text-[10px] text-blue-100 font-normal">포렌식 기초 지식 학습</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('email-header')" id="tab-email-header" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-envelope-open-text text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">2. 이메일 헤더 추적</span>
+                    <span class="text-[10px] text-slate-400">Received 및 원본 원문 분석</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('google-analyzer')" id="tab-google-analyzer" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-brands fa-google text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">3. 구글 메시지 헤더 툴</span>
+                    <span class="text-[10px] text-slate-400">시각화 도구를 활용한 분석</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('netstat-p2p')" id="tab-netstat-p2p" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-terminal text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">4. 실시간 Netstat 연결</span>
+                    <span class="text-[10px] text-slate-400">P2P 포트 및 프로세스 추적</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('wireshark-packet')" id="tab-wireshark-packet" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-network-wired text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">5. 와이어샤크 패킷 분석</span>
+                    <span class="text-[10px] text-slate-400">STUN/UDP 프로콜 패킷 디코딩</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('geoip-lookup')" id="tab-geoip-lookup" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-map-location-dot text-base"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">6. GeoIP 및 WHOIS 조회</span>
+                    <span class="text-[10px] text-slate-400">위치 시각화 및 ISP 기관 정보</span>
+                </div>
+            </button>
+
+            <div class="border-t border-cyber-border/60 my-3"></div>
+
+            <button onclick="switchTab('forensic-quiz')" id="tab-forensic-quiz" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-graduation-cap text-base text-yellow-500"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm">지식 검증 퀴즈</span>
+                    <span class="text-[10px] text-slate-400">분석 능력 자가 진단</span>
+                </div>
+            </button>
+
+            <button onclick="switchTab('legal-disclaimer')" id="tab-legal-disclaimer" class="tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white">
+                <i class="fa-solid fa-gavel text-base text-rose-500"></i>
+                <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-rose-400">법적 고지 및 주의사항</span>
+                    <span class="text-[10px] text-slate-400">윤리적 해킹 및 법적 가이드</span>
+                </div>
+            </button>
+
+            <!-- Quick status card -->
+            <div class="mt-auto bg-slate-800/50 border border-cyber-border p-3.5 rounded-xl">
+                <h4 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-clipboard-list text-cyber-accent"></i> 현재 분석 타겟 IP
+                </h4>
+                <div id="target-ip-badge" class="mt-2 text-sm code-font bg-slate-900/80 p-2 rounded border border-slate-700/60 text-cyber-accent flex justify-between items-center">
+                    <span>미획득 (헤더 확인 필요)</span>
+                    <i class="fa-solid fa-circle text-[8px] text-slate-500 animate-pulse"></i>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-2">실습을 차례로 수행하여 분석 대상 IP 정보를 획득하세요.</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
+            
+            <!-- SECTION 1: OVERVIEW -->
+            <section id="sect-overview" class="tab-content flex flex-col gap-6">
+                <div class="bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-cyber-accent/30 rounded-2xl p-6 relative overflow-hidden">
+                    <div class="absolute right-0 bottom-0 text-9xl text-cyber-accent/5 translate-x-12 translate-y-12 pointer-events-none">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <span class="bg-cyber-accent/20 text-cyber-accent border border-cyber-accent/40 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">포렌식 기초 가이드</span>
+                    <h2 class="text-2xl md:text-3xl font-extrabold mt-3 text-white">이메일 및 P2P 서비스를 통한 IP 추적 실습</h2>
+                    <p class="text-slate-300 mt-2 leading-relaxed max-w-3xl">
+                        본 시뮬레이터는 네트워크 프로토콜의 작동 원리(SMTP, P2P, TCP/IP, UDP)를 시각적으로 이해하고, 
+                        악성 메일 유포자 식별이나 위협 대응 등 보안 직무에서 필수적으로 요구되는 디지털 포렌식 기법을 체험할 수 있도록 고안되었습니다.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-cyber-dark border border-cyber-border p-5 rounded-2xl hover:border-slate-500 transition-all">
+                        <div class="h-10 w-10 rounded-lg bg-cyber-accent/10 text-cyber-accent flex items-center justify-center text-lg mb-4">
+                            <i class="fa-solid fa-bullseye"></i>
+                        </div>
+                        <h3 class="font-bold text-base text-white">실습 목적</h3>
+                        <ul class="text-xs text-slate-400 mt-2 space-y-2 leading-relaxed">
+                            <li class="flex items-start gap-1.5"><span class="text-cyber-accent">•</span> SMTP 이메일 헤더 분석을 통한 최초 송신지 역추적</li>
+                            <li class="flex items-start gap-1.5"><span class="text-cyber-accent">•</span> P2P 통신 및 메신저 파일 전송 간 네트워크 세션 실시간 도킹</li>
+                            <li class="flex items-start gap-1.5"><span class="text-cyber-accent">•</span> IP 주소를 기반으로 물리적 위치 및 ISP 할당 기관 대조</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-cyber-dark border border-cyber-border p-5 rounded-2xl hover:border-slate-500 transition-all">
+                        <div class="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg mb-4">
+                            <i class="fa-solid fa-cube"></i>
+                        </div>
+                        <h3 class="font-bold text-base text-white">가상 실습 환경 도구</h3>
+                        <ul class="text-xs text-slate-400 mt-2 space-y-2 leading-relaxed">
+                            <li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span> <strong>헤더 분석 도구:</strong> Google Admin Toolbox</li>
+                            <li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span> <strong>실시간 모니터링:</strong> CLI Netstat 명령어 인터페이스</li>
+                            <li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span> <strong>패킷 스니핑:</strong> Wireshark 대화형 인스펙터 트리</li>
+                            <li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span> <strong>IP 매핑:</strong> Open-source GeoIP 데이터베이스</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-cyber-dark border border-cyber-border p-5 rounded-2xl hover:border-slate-500 transition-all">
+                        <div class="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg mb-4">
+                            <i class="fa-solid fa-user-secret"></i>
+                        </div>
+                        <h3 class="font-bold text-base text-white">분석 대상 시나리오</h3>
+                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                            기관 보안팀의 분석관으로서, 출처를 알 수 없는 의심스러운 이메일 유포자와 P2P 망에 연동된 악성코드 유포 피어의 외부 공인 IP를 식별 및 물리 위치를 파악하는 미션입니다.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/30 border border-cyber-border p-6 rounded-2xl">
+                    <h3 class="font-bold text-lg text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-diagram-project text-cyber-accent"></i> 네트워크 추적 전체 흐름도</h3>
+                    <div class="flex flex-col md:flex-row justify-between items-stretch gap-4">
+                        <div class="flex-1 bg-slate-900/60 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center">
+                            <div class="bg-cyber-accent text-white h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs mb-2">01</div>
+                            <h4 class="text-sm font-semibold text-white">이메일 분석</h4>
+                            <p class="text-xs text-slate-400 mt-1">원본 원문 확보 후 헤더 파싱을 통해 `Received` 필드의 최초 IP 추출</p>
+                        </div>
+                        <div class="flex items-center justify-center text-slate-600"><i class="fa-solid fa-circle-arrow-right text-xl hidden md:block"></i><i class="fa-solid fa-circle-arrow-down text-xl block md:hidden"></i></div>
+                        <div class="flex-1 bg-slate-900/60 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center">
+                            <div class="bg-emerald-500 text-white h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs mb-2">02</div>
+                            <h4 class="text-sm font-semibold text-white">P2P 및 패킷 디코딩</h4>
+                            <p class="text-xs text-slate-400 mt-1">Netstat 및 Wireshark 패킷 캡처를 활용한 통신 연결 및 프로세스 PID 연계</p>
+                        </div>
+                        <div class="flex items-center justify-center text-slate-600"><i class="fa-solid fa-circle-arrow-right text-xl hidden md:block"></i><i class="fa-solid fa-circle-arrow-down text-xl block md:hidden"></i></div>
+                        <div class="flex-1 bg-slate-900/60 p-4 rounded-xl border border-slate-700 flex flex-col items-center text-center">
+                            <div class="bg-amber-500 text-white h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs mb-2">03</div>
+                            <h4 class="text-sm font-semibold text-white">IP 정보 시각화</h4>
+                            <p class="text-xs text-slate-400 mt-1">추출한 IP를 이용하여 GeoIP 지리적 위치 파악 및 ISP 도메인 역추적</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end mt-4">
+                    <button onclick="switchTab('email-header')" class="px-6 py-3 bg-cyber-accent hover:bg-blue-600 text-white rounded-xl font-semibold shadow-lg transition-all flex items-center gap-2">
+                        실습 1 시작하기 <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- SECTION 2: EMAIL HEADER ANALYSIS -->
+            <section id="sect-email-header" class="tab-content hidden flex flex-col gap-6">
+                <div>
+                    <span class="text-xs px-2.5 py-1 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-full font-bold">실습 1</span>
+                    <h2 class="text-2xl font-bold text-white mt-2">이메일 헤더 분석을 통한 송신자 IP 추적</h2>
+                    <p class="text-slate-400 text-sm mt-1">메일 서버를 거칠 때마다 기록되는 `Received` 헤더 영역과 실제 전송 기기 IP 정보를 파헤쳐 봅니다.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Left column: Tutorial instructions & Preset Select -->
+                    <div class="lg:col-span-4 flex flex-col gap-4">
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <h3 class="font-bold text-sm text-slate-200 mb-3"><i class="fa-solid fa-circle-play text-cyber-accent"></i> 단계 1. 이메일 헤더 수집</h3>
+                            <p class="text-xs text-slate-400 leading-relaxed">
+                                실제 이메일함(Gmail, Naver 등)에서 [원본보기] 또는 [원문보기] 메뉴를 실행하면 텍스트 형태의 수많은 헤더 영역을 볼 수 있습니다. 
+                            </p>
+                            <div class="mt-3 text-xs bg-slate-900/60 p-2.5 rounded border border-slate-700 space-y-1.5 text-slate-300">
+                                <div class="font-semibold text-cyber-accent">필수 탐색 식별 필드:</div>
+                                <div><strong>• Received:</strong> 경유한 메일 서버 기록 (가장 최하단이 최초 발송지)</div>
+                                <div><strong>• X-Originating-IP:</strong> 포털 메일 작성자의 실제 클라이언트 접속 공인 IP</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl flex flex-col gap-3">
+                            <label class="text-xs font-bold text-slate-300">실습용 메일 시나리오 선택:</label>
+                            <select id="email-preset-select" onchange="loadEmailPreset()" class="w-full bg-slate-900 border border-cyber-border p-2.5 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyber-accent">
+                                <option value="preset1">시나리오 1: 피싱 이메일 헤더 (해외 우회 발송)</option>
+                                <option value="preset2">시나리오 2: 포털 사이트 메일 헤더 (실제 발송기기 IP 기재)</option>
+                            </select>
+                            <div class="text-[11px] text-slate-400 leading-normal" id="preset-desc">
+                                <!-- Dynamic desc -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right column: Interactive Code / Text Box -->
+                    <div class="lg:col-span-8 flex flex-col gap-4">
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl overflow-hidden flex flex-col h-[420px]">
+                            <div class="bg-slate-900 px-4 py-2 border-b border-cyber-border flex justify-between items-center shrink-0">
+                                <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>
+                                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block"></span>
+                                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+                                    원본 이메일 텍스트 (Raw Header Content)
+                                </span>
+                                <button onclick="copyToClipboard('email-header-raw')" class="px-2.5 py-1 bg-slate-800 text-slate-300 hover:text-white rounded border border-slate-700 hover:bg-slate-700 text-[10px] flex items-center gap-1 transition-all">
+                                    <i class="fa-solid fa-copy"></i> 클립보드에 복사
+                                </button>
+                            </div>
+                            <div class="flex-1 relative overflow-auto p-4 code-font text-xs bg-slate-950 text-slate-300 leading-relaxed">
+                                <textarea id="email-header-raw" class="w-full h-full bg-transparent border-none text-slate-300 outline-none resize-none focus:ring-0 whitespace-pre scrollbar-thin" spellcheck="false"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 justify-end">
+                            <button onclick="highlightReceivedHeaders()" class="px-4 py-2 border border-cyber-border hover:border-slate-400 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-magnifying-glass"></i> 핵심 필드 즉시 파싱
+                            </button>
+                            <button onclick="goToGoogleAnalyzer()" class="px-5 py-2 bg-cyber-accent hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/10">
+                                구글 메시지 헤더 도구로 전송 <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom visual parser alert inside simulator -->
+                <div id="quick-parse-result" class="hidden bg-slate-800/80 border border-cyber-border rounded-xl p-4 animate-fadeIn">
+                    <h4 class="text-sm font-bold text-white mb-2 flex items-center gap-2"><i class="fa-solid fa-diagram-next text-cyber-accent"></i> 실습 헤더 간이 파싱 결과</h4>
+                    <div id="quick-parse-content" class="text-xs text-slate-300 leading-relaxed grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: GOOGLE MESSAGE HEADER ANALYZER SIMULATOR -->
+            <section id="sect-google-analyzer" class="tab-content hidden flex flex-col gap-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <span class="text-xs px-2.5 py-1 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-full font-bold">실습 1-추가</span>
+                        <h2 class="text-2xl font-bold text-white mt-2">구글 메시지 헤더 분석 도구 시뮬레이터</h2>
+                        <p class="text-slate-400 text-sm mt-1">Google Admin Toolbox의 핵심 엔진을 에뮬레이트하여 헤더 지연과 위조 방지 서명(SPF, DKIM)을 시각화합니다.</p>
+                    </div>
+                    <div class="text-xs text-slate-400 flex items-center gap-2 bg-slate-800/50 p-2 rounded-lg border border-slate-700">
+                        <i class="fa-solid fa-link text-cyber-accent"></i> 실주소: <a href="https://toolbox.googleapps.com/apps/messageheader/analyzeheader" target="_blank" class="text-cyber-accent hover:underline">Messageheader 툴 바로가기</a>
+                    </div>
+                </div>
+
+                <!-- Analyzer Interface Box -->
+                <div class="bg-slate-900 border border-cyber-border rounded-2xl p-6 flex flex-col gap-6">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-paste text-cyber-accent"></i> 이곳에 복사된 이메일 헤더를 붙여넣으세요:
+                        </label>
+                        <textarea id="analyzer-input" placeholder="이메일 헤더 원문을 붙여넣은 뒤 아래의 버튼을 누르세요..." class="w-full h-32 bg-slate-950 border border-slate-700/80 rounded-xl p-3 text-xs code-font text-slate-300 focus:outline-none focus:border-cyber-accent focus:ring-1 focus:ring-cyber-accent/40 scrollbar-thin"></textarea>
+                    </div>
+
+                    <div class="flex justify-center">
+                        <button onclick="runHeaderAnalysis()" class="px-10 py-3.5 bg-cyber-accent hover:bg-blue-600 text-white font-bold rounded-xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-cyber-accent/20">
+                            <i class="fa-solid fa-bolt"></i> 위의 헤더 분석 (Analyze header above)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dynamic Output Area -->
+                <div id="analyzer-results-wrapper" class="hidden flex flex-col gap-6 animate-fadeIn">
+                    <div class="border-t border-cyber-border my-2"></div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-emerald-400"></i> 헤더 분석 결과 리포트</h3>
+                    
+                    <!-- 1. Basic Metadata -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">메일 제목 (Subject)</span>
+                            <span id="res-subject" class="text-sm font-semibold text-white mt-1 block truncate">미수신 메일</span>
+                        </div>
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">송신인 (From)</span>
+                            <span id="res-from" class="text-sm font-semibold text-white mt-1 block truncate">unknown@sender.com</span>
+                        </div>
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">수신인 (To)</span>
+                            <span id="res-to" class="text-sm font-semibold text-white mt-1 block truncate">you@receiver.com</span>
+                        </div>
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">작성 일시 (Created on)</span>
+                            <span id="res-date" class="text-sm font-semibold text-white mt-1 block truncate">-</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Deliver Delay Table -->
+                    <div class="bg-cyber-dark border border-cyber-border rounded-xl overflow-hidden">
+                        <div class="bg-slate-900 px-4 py-3 border-b border-cyber-border">
+                            <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wide flex items-center gap-1.5">
+                                <i class="fa-solid fa-clock text-amber-500"></i> 메일 서버 전달 지연 분석 (Delay Timeline)
+                            </h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-900/50 border-b border-cyber-border text-slate-400 font-semibold">
+                                        <th class="p-3">홉 (Hop)</th>
+                                        <th class="p-3">발신 메일 서버 / 클라이언트 IP</th>
+                                        <th class="p-3">수신 메일 서버</th>
+                                        <th class="p-3">소요 시간 (Delay)</th>
+                                        <th class="p-3">타임라인 정보</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="delay-table-rows" class="text-slate-300">
+                                    <!-- Dynamic rows from script -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 3. Security Cert Status -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider">SPF (Sender Policy Framework)</h5>
+                                <p class="text-[10px] text-slate-500 mt-1">발송 서버 IP의 도메인 사칭 허용 여부</p>
+                            </div>
+                            <span id="badge-spf" class="px-2.5 py-1 text-xs font-bold rounded-lg border">PASS</span>
+                        </div>
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider">DKIM (DomainKeys Identified Mail)</h5>
+                                <p class="text-[10px] text-slate-500 mt-1">전자 서명을 통한 메일 위변조 검증</p>
+                            </div>
+                            <span id="badge-dkim" class="px-2.5 py-1 text-xs font-bold rounded-lg border">PASS</span>
+                        </div>
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl p-4 flex items-center justify-between">
+                            <div>
+                                <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider">DMARC (Domain-based Auth)</h5>
+                                <p class="text-[10px] text-slate-500 mt-1">SPF/DKIM 정책 적용 검증 결과</p>
+                            </div>
+                            <span id="badge-dmarc" class="px-2.5 py-1 text-xs font-bold rounded-lg border">PASS</span>
+                        </div>
+                    </div>
+
+                    <!-- Target IP Confirmed Action Area -->
+                    <div id="target-confirmed-box" class="bg-blue-950/40 border border-cyber-accent p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 animate-pulse">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-full bg-cyber-accent text-white flex items-center justify-center text-lg shadow-md shadow-blue-500/25">
+                                <i class="fa-solid fa-fingerprint"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-white">최초 발송지 IP 주소 획득 성공!</h4>
+                                <p class="text-xs text-slate-400 mt-0.5">분석된 최초 출발지 공인 IP: <span id="extracted-ip-display" class="font-bold code-font text-cyber-accent"></span></p>
+                            </div>
+                        </div>
+                        <button onclick="goToGeoIPLookupFromEmail()" class="px-4 py-2 bg-cyber-accent hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-lg shadow-blue-500/10">
+                            해당 IP 위치 추적하기 <i class="fa-solid fa-map-location-dot"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: NETSTAT P2P TRACKING -->
+            <section id="sect-netstat-p2p" class="tab-content hidden flex flex-col gap-6">
+                <div>
+                    <span class="text-xs px-2.5 py-1 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-full font-bold">실습 2-A</span>
+                    <h2 class="text-2xl font-bold text-white mt-2">CLI Netstat 연결 & 프로세스 추적 실습</h2>
+                    <p class="text-slate-400 text-sm mt-1">사용자 컴퓨터 간 직접 데이터를 수신하는 P2P 환경에서 연결 소유 프로세스 PID와 상대방 IP를 탐지합니다.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Left Command description -->
+                    <div class="lg:col-span-5 flex flex-col gap-4">
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <h3 class="font-bold text-sm text-slate-200 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-terminal text-cyber-accent"></i> netstat -ano 옵션 원리</h3>
+                            <p class="text-xs text-slate-400 leading-relaxed mb-3">
+                                윈도우 및 리눅스 터미널에서 활성화된 활성 연결망을 필터링 및 포렌식 대조하기 위해 사용하는 핵심 네트워크 옵션입니다.
+                            </p>
+                            <div class="space-y-2.5 text-xs">
+                                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-300">
+                                    <code class="text-cyber-accent font-bold">-a (All)</code> : 대기 포트 및 열린 소켓 전체 출력
+                                </div>
+                                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-300">
+                                    <code class="text-cyber-accent font-bold">-n (Numeric)</code> : 도메인 생략, 숫자로 고속 IP 출력
+                                </div>
+                                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-300">
+                                    <code class="text-cyber-accent font-bold">-o (Process)</code> : 프로세스 PID(Process ID) 칼럼 추가
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-cyber-dark border border-cyber-border p-4 rounded-xl">
+                            <h4 class="text-xs font-bold text-slate-300 mb-2">실습 미션 순서:</h4>
+                            <ol class="text-xs text-slate-400 space-y-2 leading-relaxed list-decimal list-inside">
+                                <li>터미널 시뮬레이터 하단에 미리 준비된 <strong class="text-cyber-accent">명령어 버튼</strong>을 누르거나 직접 입력하세요.</li>
+                                <li>실행되어 연결 수립 완료된 <code class="text-slate-300">ESTABLISHED</code> 연결 중, PID 정보를 확인합니다.</li>
+                                <li>획득한 PID를 <code class="text-slate-300">tasklist | findstr {PID}</code> 구문과 대조하여 유포 유력 애플리케이션 명을 특정합니다.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Right Terminal Simulator -->
+                    <div class="lg:col-span-7 flex flex-col gap-4">
+                        <div class="bg-slate-950 border-2 border-slate-800 rounded-xl overflow-hidden flex flex-col h-[380px] shadow-2xl relative">
+                            <!-- Terminal Window Title -->
+                            <div class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center shrink-0">
+                                <span class="text-xs font-bold text-slate-400 code-font flex items-center gap-2">
+                                    <i class="fa-solid fa-rectangle-terminal text-slate-400"></i> Administrator: Command Prompt (CMD)
+                                </span>
+                                <div class="flex gap-1.5">
+                                    <span class="w-3 h-3 rounded-full bg-slate-800 hover:bg-slate-700"></span>
+                                    <span class="w-3 h-3 rounded-full bg-slate-800 hover:bg-slate-700"></span>
+                                </div>
+                            </div>
+                            <!-- Terminal body logs -->
+                            <div id="cmd-body" class="flex-1 overflow-y-auto p-4 code-font text-xs text-emerald-400 space-y-3 leading-relaxed scrollbar-thin">
+                                <p class="text-slate-500">Microsoft Windows [Version 10.0.22631.3527]<br>(c) Microsoft Corporation. All rights reserved.</p>
+                                <div id="terminal-history" class="space-y-3">
+                                    <!-- Dynamic CMD logs printed here -->
+                                </div>
+                                <div class="flex items-center gap-1 text-slate-200" id="terminal-input-row">
+                                    <span class="shrink-0 text-emerald-400">C:\Users\Forensic_Lab></span>
+                                    <input type="text" id="cmd-input" autofocus autocomplete="off" class="bg-transparent border-none text-emerald-400 focus:ring-0 focus:outline-none flex-1 font-bold code-font text-xs" placeholder="명령어를 입력하거나 아래 퀵버튼을 클릭하세요...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CLI Quick Buttons -->
+                        <div class="flex flex-wrap gap-2 justify-between items-center">
+                            <div class="flex gap-2">
+                                <button onclick="runCommand('netstat -ano | findstr ESTABLISHED')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold code-font transition-all">
+                                    netstat -ano | findstr ESTABLISHED
+                                </button>
+                                <button id="btn-tasklist" onclick="runCommand('tasklist | findstr 12440')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold code-font transition-all opacity-50 cursor-not-allowed" disabled>
+                                    tasklist | findstr 12440
+                                </button>
+                            </div>
+                            <button onclick="clearTerminal()" class="px-3 py-2 border border-slate-800 hover:border-slate-500 text-slate-400 hover:text-white rounded-lg text-xs transition-all">
+                                터미널 비우기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: WIRESHARK PACKET ANALYSIS -->
+            <section id="sect-wireshark-packet" class="tab-content hidden flex flex-col gap-6">
+                <div>
+                    <span class="text-xs px-2.5 py-1 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-full font-bold">실습 2-B</span>
+                    <h2 class="text-2xl font-bold text-white mt-2">와이어샤크 패킷 분석 및 IP 탐지</h2>
+                    <p class="text-slate-400 text-sm mt-1">네트워크 카드로 들어오고 나가는 실제 유통 패킷을 스니핑하고 구조를 쪼개어 실시간 통신 대상 IP를 확정합니다.</p>
+                </div>
+
+                <!-- Live Stream control -->
+                <div class="bg-slate-900 border border-cyber-border rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <div id="wireshark-status-dot" class="h-3.5 w-3.5 rounded-full bg-emerald-500 animate-ping"></div>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200">네트워크 모니터링 세션 : Wi-Fi 캡처 인터페이스</h3>
+                            <p class="text-[11px] text-slate-400">물리 드라이버 패킷 캡처 실시간 구동 및 버퍼 보관 중</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="wireshark-filter" placeholder="적용 필터 입력 (예: stun, udp, tcp)..." class="bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 font-mono">
+                        <button onclick="applyWiresharkFilter()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded text-xs font-bold text-white transition-all">
+                            적용
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Packet List Table (Top half visual) -->
+                    <div class="lg:col-span-12 flex flex-col bg-slate-950 border border-cyber-border rounded-xl h-60 overflow-hidden">
+                        <div class="bg-slate-900 px-4 py-2 border-b border-cyber-border shrink-0 flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-400">Captured Packets (실시간 패킷 수집 리스트)</span>
+                            <span class="text-[10px] text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 border border-emerald-500/20 rounded">수집된 패킷: 6개</span>
+                        </div>
+                        <div class="flex-1 overflow-auto">
+                            <table class="w-full text-left border-collapse text-xs code-font">
+                                <thead class="sticky top-0 bg-slate-900 text-slate-400 border-b border-cyber-border select-none">
+                                    <tr>
+                                        <th class="p-2.5 w-12">No.</th>
+                                        <th class="p-2.5 w-20">Time</th>
+                                        <th class="p-2.5 w-32">Source</th>
+                                        <th class="p-2.5 w-32">Destination</th>
+                                        <th class="p-2.5 w-16">Protocol</th>
+                                        <th class="p-2.5 w-16">Length</th>
+                                        <th class="p-2.5">Info</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wireshark-rows">
+                                    <!-- Dynamic Wireshark Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Packet Details Tree View (Bottom half visual) -->
+                    <div class="lg:col-span-12 flex flex-col bg-slate-900 border border-cyber-border rounded-xl p-4">
+                        <h3 class="font-bold text-xs text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-slate-700/60 pb-2">
+                            <i class="fa-solid fa-folder-tree text-cyber-accent"></i> Packet Details (선택된 패킷 세부 계층 분석)
+                        </h3>
+                        
+                        <div class="space-y-2 text-xs code-font text-slate-300 select-none">
+                            <!-- Frame layer -->
+                            <details class="bg-slate-950/40 rounded p-2 border border-slate-800">
+                                <summary class="cursor-pointer font-semibold text-slate-400 hover:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-chevron-right text-[10px]"></i> Frame 104 (154 bytes on wire, 154 bytes captured)
+                                </summary>
+                                <div class="pl-6 mt-1.5 space-y-1 text-slate-500">
+                                    <div>Arrival Time: Jun 22, 2026 11:45:12.428519000 KST</div>
+                                    <div>Epoch Time: 1782105912.428519000 seconds</div>
+                                    <div>Frame Number: 104 / Interface Id: 0</div>
+                                </div>
+                            </details>
+
+                            <!-- Ethernet layer -->
+                            <details class="bg-slate-950/40 rounded p-2 border border-slate-800">
+                                <summary class="cursor-pointer font-semibold text-slate-400 hover:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-chevron-right text-[10px]"></i> Ethernet II, Src: Intel_ef:84:aa (a4:5e:60:ef:84:aa), Dst: Router_32:bc:1e (00:11:32:bc:1e)
+                                </summary>
+                                <div class="pl-6 mt-1.5 space-y-1 text-slate-500">
+                                    <div>Destination: Router_32:bc:1e (00:11:32:bc:1e)</div>
+                                    <div>Source: Intel_ef:84:aa (a4:5e:60:ef:84:aa)</div>
+                                    <div>Type: IPv4 (0x0800)</div>
+                                </div>
+                            </details>
+
+                            <!-- IPv4 layer (CRITICAL) -->
+                            <details id="ipv4-detail-node" class="bg-slate-950/40 rounded p-2 border border-slate-800" open>
+                                <summary class="cursor-pointer font-semibold text-slate-200 hover:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-cyber-accent"></i> Internet Protocol Version 4, Src: <span id="layer-ip-src" class="text-cyber-accent font-bold">192.168.0.229</span>, Dst: <span id="layer-ip-dst" class="text-cyber-accent font-bold">142.251.151.2</span>
+                                </summary>
+                                <div class="pl-6 mt-1.5 space-y-1 text-slate-400">
+                                    <div>0100 .... = Version: 4</div>
+                                    <div>.... 0101 = Header Length: 20 bytes (5)</div>
+                                    <div>Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)</div>
+                                    <div>Total Length: 140</div>
+                                    <div>Identification: 0x56fa (22266)</div>
+                                    <div>Protocol: UDP (17)</div>
+                                    <div class="text-white font-bold bg-slate-900 px-2 py-0.5 rounded inline-block">
+                                        [출발지 IP - Source]: <span id="layer-ip-src-desc" class="text-cyber-accent">192.168.0.229</span> (나의 사설 IP 대역)
+                                    </div>
+                                    <div class="text-white font-bold bg-slate-900 px-2 py-0.5 rounded inline-block ml-2">
+                                        [목적지 IP - Destination]: <span id="layer-ip-dst-desc" class="text-cyber-accent">142.251.151.2</span> (외부 공인 IP 주소)
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Transport UDP/TCP layer (CRITICAL) -->
+                            <details id="transport-detail-node" class="bg-slate-950/40 rounded p-2 border border-slate-800" open>
+                                <summary class="cursor-pointer font-semibold text-slate-200 hover:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-amber-500"></i> User Datagram Protocol, Src Port: <span id="layer-port-src" class="text-amber-500 font-bold">50080</span>, Dst Port: <span id="layer-port-dst" class="text-amber-500 font-bold">443</span>
+                                </summary>
+                                <div class="pl-6 mt-1.5 space-y-1 text-slate-400">
+                                    <div>Source Port: <span id="layer-port-src-desc" class="text-amber-500">50080</span></div>
+                                    <div>Destination Port: <span id="layer-port-dst-desc" class="text-amber-500">443</span></div>
+                                    <div>Length: 120</div>
+                                    <div>Checksum: 0x2af4 [unverified]</div>
+                                </div>
+                            </details>
+
+                            <!-- Application layer -->
+                            <details id="app-detail-node" class="bg-slate-950/40 rounded p-2 border border-slate-800" open>
+                                <summary class="cursor-pointer font-semibold text-slate-200 hover:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-emerald-500"></i> Application Protocol Data: <span id="layer-app-proto" class="text-emerald-500 font-bold">QUIC IETF</span>
+                                </summary>
+                                <div class="pl-6 mt-1.5 space-y-1 text-slate-400">
+                                    <div id="layer-app-desc">QUIC connection payload (Encrypted packet payload)</div>
+                                    <div>Payload Length: 112 bytes</div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-4">
+                    <button onclick="goToGeoIPLookupFromPacket()" class="px-6 py-3 bg-cyber-accent hover:bg-blue-600 text-white rounded-xl font-bold shadow-lg transition-all flex items-center gap-2">
+                        추출한 외부 IP 위치 추적 전송 <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- SECTION 6: GEOIP AND WHOIS LOOKUP -->
+            <section id="sect-geoip-lookup" class="tab-content hidden flex flex-col gap-6">
+                <div>
+                    <span class="text-xs px-2.5 py-1 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-full font-bold">실습 3</span>
+                    <h2 class="text-2xl font-bold text-white mt-2">추적한 IP 주소 상세 분석 (위치 및 ISP 확인)</h2>
+                    <p class="text-slate-400 text-sm mt-1">확보한 외부 IP 주소를 DB 및 WHOIS 데이터베이스와 결합하여 실제 국가, 도시 및 기지국 ISP 할당 정보를 지도에 매핑합니다.</p>
+                </div>
+
+                <!-- Input box and quick presets -->
+                <div class="bg-slate-900 border border-cyber-border rounded-xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex flex-col gap-1 w-full md:w-auto">
+                        <label class="text-xs font-bold text-slate-300">위치 정보를 조회할 공인 IP 입력:</label>
+                        <div class="flex gap-2 mt-1 w-full md:w-96">
+                            <input type="text" id="geoip-input" placeholder="예: 203.0.113.42" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 code-font focus:outline-none focus:border-cyber-accent flex-1">
+                            <button onclick="runGeoIPLookup()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-map-location-dot"></i> 조회
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1 w-full md:w-auto">
+                        <span class="text-xs font-bold text-slate-400">시뮬레이션 확보 IP 퀵셋:</span>
+                        <div class="flex gap-2 mt-1.5">
+                            <button onclick="setGeoIPQuickInput('185.220.101.5')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[11px] code-font border border-slate-700 rounded-lg text-slate-300">
+                                185.220.101.5 (피싱메일)
+                            </button>
+                            <button onclick="setGeoIPQuickInput('125.209.222.141')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[11px] code-font border border-slate-700 rounded-lg text-slate-300">
+                                125.209.222.141 (네이버)
+                            </button>
+                            <button onclick="setGeoIPQuickInput('203.0.113.42')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[11px] code-font border border-slate-700 rounded-lg text-slate-300">
+                                203.0.113.42 (토렌트)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map and Details Panels -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Left: GeoIP Info details and WHOIS -->
+                    <div class="lg:col-span-5 flex flex-col gap-4">
+                        <!-- GeoIP Card -->
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl p-5">
+                            <h3 class="font-bold text-sm text-slate-200 border-b border-slate-700/60 pb-2 mb-4 flex items-center gap-1.5">
+                                <i class="fa-solid fa-location-dot text-cyber-accent"></i> Geolocation 물리적 지리 정보
+                            </h3>
+                            <div class="space-y-3.5 text-xs">
+                                <div class="flex justify-between border-b border-slate-800 pb-2">
+                                    <span class="text-slate-400">조회 IP 주소</span>
+                                    <span id="geo-ip-val" class="font-bold code-font text-cyber-accent">203.0.113.42</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-800 pb-2">
+                                    <span class="text-slate-400">국가 (Country)</span>
+                                    <span id="geo-country" class="font-semibold text-white">South Korea (KR)</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-800 pb-2">
+                                    <span class="text-slate-400">도시/지역 (City / Region)</span>
+                                    <span id="geo-city" class="font-semibold text-white">Seoul</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-800 pb-2">
+                                    <span class="text-slate-400">인터넷 공급망 (ISP)</span>
+                                    <span id="geo-isp" class="font-semibold text-amber-400">SK Broadband</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-800 pb-2">
+                                    <span class="text-slate-400">도메인 / 기관 분류</span>
+                                    <span id="geo-org" class="font-semibold text-white">Broadband Network Service</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">위경도 좌표 (Lat / Lon)</span>
+                                    <span id="geo-coords" class="font-semibold text-white code-font">37.5665, 126.9780</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WHOIS Search Card -->
+                        <div class="bg-cyber-dark border border-cyber-border rounded-xl p-5">
+                            <h3 class="font-bold text-sm text-slate-200 border-b border-slate-700/60 pb-2 mb-4 flex items-center gap-1.5">
+                                <i class="fa-solid fa-building-columns text-emerald-400"></i> WHOIS 소유권 관리 기관 내역
+                            </h3>
+                            <div id="whois-raw-box" class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-[11px] code-font text-emerald-400 leading-normal max-h-48 overflow-y-auto scrollbar-thin">
+                                <!-- Dynamic WHOIS logs -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Leaflet Live Map -->
+                    <div class="lg:col-span-7 flex flex-col bg-cyber-dark border border-cyber-border rounded-xl overflow-hidden h-[480px]">
+                        <div class="bg-slate-900 px-4 py-2 border-b border-cyber-border shrink-0 flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-earth-asia text-emerald-400"></i> 포렌식 지리 위성지도 뷰어 (Leaflet GIS)
+                            </span>
+                            <span class="text-[10px] text-slate-400">오차 범위: 통신망 허브 기준 대략 반경 5~10km</span>
+                        </div>
+                        <div id="map-canvas" class="flex-1 w-full h-full bg-slate-950">
+                            <!-- Leaflet map instance binds here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 7: QUIZ -->
+            <section id="sect-forensic-quiz" class="tab-content hidden flex flex-col gap-6">
+                <div>
+                    <span class="text-xs px-2.5 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 rounded-full font-bold">자가 진단</span>
+                    <h2 class="text-2xl font-bold text-white mt-2">실습 핵심 내용 검증 퀴즈</h2>
+                    <p class="text-slate-400 text-sm mt-1">이메일 헤더 분석과 패킷 스니핑 실습으로 익힌 네트워크 지식을 검증해 봅니다.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <!-- Left: Questions card -->
+                    <div class="md:col-span-8 flex flex-col gap-4">
+                        <!-- Q1 -->
+                        <div class="bg-cyber-dark border border-cyber-border p-5 rounded-2xl flex flex-col gap-3">
+                            <span class="text-xs text-cyber-accent font-bold uppercase tracking-wider">질문 1</span>
+                            <h4 class="font-semibold text-sm text-white">이메일 원본 헤더에서 여러 개의 `Received:` 필드가 존재할 때, 최초 작성기기(발송지)의 정보를 추출하기 위해 확인해야 하는 우선순위는 무엇입니까?</h4>
+                            
+                            <div class="grid grid-cols-1 gap-2.5 mt-2">
+                                <button onclick="checkQuizAnswer(1, 'A')" class="quiz-opt-1 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">A</span>
+                                    <span>가장 위(최상단)에 있는 Received 필드가 메일 서버를 통과하기 직전 발송된 정보를 담고 있다.</span>
+                                </button>
+                                <button onclick="checkQuizAnswer(1, 'B')" class="quiz-opt-1 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">B</span>
+                                    <span>가장 아래(최하단)에 있는 Received 필드가 최초로 수신 기기 혹은 작성자 로컬 기기에서 발신된 정보를 담고 있다.</span>
+                                </button>
+                                <button onclick="checkQuizAnswer(1, 'C')" class="quiz-opt-1 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">C</span>
+                                    <span>가장 중간에 위치한 서버 홉 정보에 실제 작성자 공인 IP가 정형화되어 기록된다.</span>
+                                </button>
+                            </div>
+                            <div id="quiz-feedback-1" class="hidden mt-2 p-3 rounded-lg text-xs font-semibold"></div>
+                        </div>
+
+                        <!-- Q2 -->
+                        <div class="bg-cyber-dark border border-cyber-border p-5 rounded-2xl flex flex-col gap-3">
+                            <span class="text-xs text-cyber-accent font-bold uppercase tracking-wider">질문 2</span>
+                            <h4 class="font-semibold text-sm text-white">실시간 P2P 서비스 및 메신저 파일 유동에 대해 연결된 프로세스를 정밀 매핑하기 위해 Netstat 명령어에서 사용하는 PID 소유 칼럼 추가 옵션은 무엇입니까?</h4>
+                            
+                            <div class="grid grid-cols-1 gap-2.5 mt-2">
+                                <button onclick="checkQuizAnswer(2, 'A')" class="quiz-opt-2 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">A</span>
+                                    <span>netstat -r 옵션</span>
+                                </button>
+                                <button onclick="checkQuizAnswer(2, 'B')" class="quiz-opt-2 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">B</span>
+                                    <span>netstat -f 옵션</span>
+                                </button>
+                                <button onclick="checkQuizAnswer(2, 'C')" class="quiz-opt-2 flex items-start gap-3 p-3 bg-slate-900/60 border border-slate-800 hover:border-slate-600 rounded-xl text-left text-xs transition-all">
+                                    <span class="bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center font-bold shrink-0">C</span>
+                                    <span>netstat -o (Owning Process) 옵션</span>
+                                </button>
+                            </div>
+                            <div id="quiz-feedback-2" class="hidden mt-2 p-3 rounded-lg text-xs font-semibold"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Quick statistics -->
+                    <div class="md:col-span-4 flex flex-col gap-4">
+                        <div class="bg-slate-900 border border-cyber-border p-5 rounded-2xl flex flex-col items-center text-center">
+                            <h3 class="font-bold text-sm text-white mb-2">분석 퀴즈 현황</h3>
+                            <div class="relative flex items-center justify-center mt-3">
+                                <div class="text-3xl font-extrabold text-cyber-accent code-font" id="quiz-score-num">0 / 2</div>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-4 leading-normal">
+                                두 실무 포렌식 문제를 정확히 해결하여 핵심 지식이 확보되었는지 인증하십시오.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 8: LEGAL DISCLAIMER -->
+            <section id="sect-legal-disclaimer" class="tab-content hidden flex flex-col gap-6">
+                <div class="bg-rose-950/20 border-2 border-rose-500/30 rounded-2xl p-6 relative overflow-hidden">
+                    <div class="absolute right-0 bottom-0 text-9xl text-rose-500/5 translate-x-12 translate-y-12 pointer-events-none">
+                        <i class="fa-solid fa-gavel"></i>
+                    </div>
+                    <span class="bg-rose-500/20 text-rose-400 border border-rose-500/40 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">경고 및 준수 가이드라인</span>
+                    <h2 class="text-2xl font-extrabold mt-3 text-rose-400">주의사항 및 포렌식 조사 법적 고지</h2>
+                    <p class="text-slate-300 mt-2 leading-relaxed max-w-4xl text-sm">
+                        IP 주소 추적 및 스니핑 도구를 이용한 수사는 합법적인 승인 절차가 갖추어진 조사 환경에서 이루어져야 합니다. 
+                        악의적이고 인가되지 않은 분석 행위는 엄중한 법적 조치에 직면할 수 있습니다.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-cyber-dark border border-cyber-border p-5 rounded-xl flex flex-col gap-3">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-user-shield text-rose-400"></i> 개인정보 및 프라이버시 보호법</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            IP 주소는 단독으로 특정 개인을 식별하기 어려울 수 있으나, 다른 결합 가능한 정보와 합쳐질 경우 식별력이 인정되어 개인정보에 준하게 분류됩니다. 
+                            이에 따라 타인의 사전 동의나 명확한 법적 사유(압수수색 영장 등) 없이 무단 추적, 모니터링, 해킹 위협 유발 등의 행위는 <strong class="text-rose-400">정보통신망법 제48조(정보통신망 침해행위 등의 금지)</strong> 및 <strong class="text-rose-400">개인정보 보호법</strong>에 따라 처벌받을 수 있습니다.
+                        </p>
+                    </div>
+
+                    <div class="bg-cyber-dark border border-cyber-border p-5 rounded-xl flex flex-col gap-3">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-radar text-amber-400"></i> IP Geolocation 오차 범위에 대한 고지</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            IP 주소를 기반으로 한 지리적 위치 파악 서비스(GeoIP)는 실제 대상자의 정밀 자택 주소(지번, 아파트 동/호수 등)를 가리킬 수 없습니다. 
+                            해당 IP 대역을 관리 및 배포하는 <strong class="text-amber-400">인터넷 서비스 제공업체(ISP)의 기지국 위치, 통신 라우터 및 스위치 허브의 지역 단위(동/읍/면 또는 구 단위)</strong>만 매핑하므로 실 주소와는 수 킬로미터 이상의 오차가 반드시 수반됩니다.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/30 border border-cyber-border p-6 rounded-2xl">
+                    <h3 class="font-bold text-base text-white mb-3">윤리적 분석 역량 선언</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        본 실습 시뮬레이터는 침해사고 대응(IR), 악성 위협 차단, 피싱 분석관 배양 등의 학술 및 기업 실무 목적 연구를 위해서만 연동되어야 합니다. 
+                        가상 테스트 환경 혹은 본인이 직접 권한을 부여받은 자산 간의 점검을 통해 윤리적으로 올바른 보안 연구자가 되도록 권장합니다.
+                    </p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Footer section -->
+    <footer class="bg-slate-950 border-t border-cyber-border py-4 px-6 text-center text-xs text-slate-500">
+        <p>© 2026 Digital Forensic & Cyber Security Lab. All rights reserved. 교육 목적의 시뮬레이터입니다.</p>
+    </footer>
+
+    <!-- STYLES & SCRIPT LOGIC -->
+    <script>
+        // State management
+        let state = {
+            currentTab: 'overview',
+            currentPreset: 'preset1',
+            extractedIP: '',
+            hasExtractedIP: false,
+            terminalStep: 0,
+            wiresharkFilter: '',
+            map: null,
+            mapMarker: null,
+            quizScores: {q1: null, q2: null}
+        };
+
+        // Email Preset Data
+        const emailPresets = {
+            preset1: {
+                desc: "해외 우회 서버망(Tor Exit Node 등)을 거쳐 전달된 의심스러운 이메일입니다. 스푸핑 처리된 메일로 SPF, DKIM 등의 보안 인증 통과 여부를 검증하고 최하단 Received를 분석할 타겟입니다.",
+                ip: "185.220.101.5",
+                raw: `Delivered-To: victim@company-sec.co.kr
+Received: by 2002:a05:620a:116e:b0:783:e7ef:cd99 with SMTP id x14csp1474922qka;
+        Mon, 22 Jun 2026 01:22:15 -0700 (PDT)
+X-Received: by 2002:a05:600c:368d:b0:41f:ffbc:fa2a with SMTP id k13mr51421422wmo;
+        Mon, 22 Jun 2026 01:21:40 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1782061300; cv=none;
+        d=google.com; s=arc-20160816;
+        b=Fw0h0/fU33M/B/R8V9g2p8+D6M5
+Authentication-Results: mx.google.com;
+       spf=fail (google.com: domain of admin@sec-notices.xyz does not designate 185.220.101.5 as permitted sender) smtp.mailfrom=admin@sec-notices.xyz;
+       dkim=fail (signature key revoked);
+       dmarc=fail (p=QUARANTINE)
+Received: from mail-gateway.tor-relay.org (mail-gateway.tor-relay.org [185.220.101.5])
+        by mx.google.com with ESMTPS id l18si524213wmo.19.2026.06.22.01.21.35
+        for <victim@company-sec.co.kr>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Mon, 22 Jun 2026 01:21:35 -0700 (PDT)
+Received: from internal-node-vpn.local (10.128.0.51) by mail-gateway.tor-relay.org with SMTP; Mon, 22 Jun 2026 01:20:02 -0700
+From: "Security Alert" <admin@sec-notices.xyz>
+To: <victim@company-sec.co.kr>
+Subject: [중요] 회사 보안 계정 비정상 접속 안내 - 패스워드 재설정 요청
+Date: Mon, 22 Jun 2026 01:19:54 -0700
+Content-Type: text/html; charset="UTF-8"
+
+의심스러운 원격 기기로부터 회원님의 회사 포털 계정 로그인이 탐지되었습니다. 즉시 변경하십시오.`
+            },
+            preset2: {
+                desc: "네이버 메일로 발송되어 X-Originating-IP가 선명하게 남아 있는 일반 포털 원본 헤더입니다. 사용자가 직접 웹 브라우저에서 메일을 발송했던 실제 PC 단말기 주소를 쉽게 획득 가능한 샘플입니다.",
+                ip: "125.209.222.141",
+                raw: `Delivered-To: master_analyst@korea.com
+Received: from ndre-back11.naver.com (ndre-back11.naver.com [125.209.222.141])
+        by mx.daum.net with SMTP id n81si65241daum;
+        Sun, 21 Jun 2026 23:10:04 +0900 (KST)
+X-Originating-IP: [125.209.222.141]
+X-Sender-Client-IP: 125.209.222.141
+Authentication-Results: mx.daum.net;
+       spf=pass (daum.net: domain of sender@naver.com designates 125.209.222.141 as permitted sender);
+       dkim=pass header.i=@naver.com;
+       dmarc=pass (p=NONE)
+Received: from localhost (unknown [127.0.0.1])
+	by ndre-back11.naver.com (Postfix) with ESMTP id 9A4D3B201EF;
+	Sun, 21 Jun 2026 23:09:59 +0900 (KST)
+From: "정직한 보낸이" <sender@naver.com>
+To: <master_analyst@korea.com>
+Subject: 요청하신 네트워크 보안 진단 실습 자료 송부드립니다.
+Date: Sun, 21 Jun 2026 23:09:50 +0900
+Message-ID: <38b201ef4f21d3f@naver.com>
+Content-Type: text/plain; charset="utf-8"
+
+안녕하십니까, 분석관님. 요청하셨던 실습 가이드 문서 1부를 첨부 파일과 함께 송신합니다.`
+            }
+        };
+
+        // GeoIP & WHOIS Database (Predefined mock values to secure exact offline works)
+        const geoipDatabase = {
+            "185.220.101.5": {
+                country: "Germany (DE)",
+                city: "Berlin",
+                isp: "Tor Exit Node Network Operator",
+                org: "Zwiebel Freunde (Tor Proxy Host)",
+                coords: [52.5200, 13.4050],
+                whois: `[WHOIS QUERY - 185.220.101.5]
+% Information related to '185.220.101.0 - 185.220.101.255'
+
+NetRange:       185.220.101.0 - 185.220.101.255
+CIDR:           185.220.101.0/24
+NetName:        TOR-EXIT-GERMANY
+NetType:        Allocated PA
+RegDate:        2017-09-12
+OrgName:        Zwiebel Freunde e.V.
+OrgID:          ZF-DE-RIPE
+Address:        Mollstrasse 30
+City:           Berlin
+PostalCode:     10249
+Country:        DE (Germany)
+
+% Abuse contact for '185.220.101.0/24' is abuse@zwiebelfreunde.de`
+            },
+            "125.209.222.141": {
+                country: "South Korea (KR)",
+                city: "Bundang-gu, Seongnam",
+                isp: "NAVER Corp (네이버 주식회사)",
+                org: "Naver Infrastructure Service",
+                coords: [37.3595, 127.1052],
+                whois: `[WHOIS QUERY - 125.209.222.141]
+# KISA WHOIS SERVICE (whois.kisa.or.kr)
+
+IPv4 Address:    125.209.222.141
+Network Name:    NAVER-NET
+OrgName:         NAVER Corp.
+OrgID:           ORG0113821
+Address:         95, Jeongjail-ro, Bundang-gu, Seongnam-si, Gyeonggi-do
+ZipCode:         13561
+Register Date:   2006-03-22
+Source:          KISA / APNIC
+
+# Abuse Contact: abuse@naver.com`
+            },
+            "203.0.113.42": {
+                country: "South Korea (KR)",
+                city: "Mapo-gu, Seoul",
+                isp: "SK Broadband (SK브로드밴드)",
+                org: "Residential Giga Broadband Network",
+                coords: [37.5500, 126.9200],
+                whois: `[WHOIS QUERY - 203.0.113.42]
+# KISA WHOIS SERVICE (whois.kisa.or.kr)
+
+IPv4 Address:    203.0.113.42
+Network Range:   203.0.112.0 - 203.0.119.255
+NetName:         SKB-BROADBAND
+OrgName:         SK Broadband Co., Ltd.
+OrgID:           ORG12891
+Address:         SK South Tower, 124, Toegye-ro, Jung-gu, Seoul
+ZipCode:         04535
+Register Date:   2011-05-18
+Source:          KISA
+
+# Abuse Contact: ipabuse@skbroadband.com`
+            }
+        };
+
+        // Wireshark Sample Packets
+        const wiresharkPackets = [
+            { no: 101, time: "0.0000", src: "192.168.0.229", dst: "1.1.1.1", proto: "DNS", len: 74, info: "Standard query 0x1f0b A m.naver.com", detail: { app: "DNS Query", desc: "DNS Address Translation lookup request for Naver web host." } },
+            { no: 102, time: "0.0125", src: "1.1.1.1", dst: "192.168.0.229", proto: "DNS", len: 142, info: "Standard query response 0x1f0b A 125.209.222.141", detail: { app: "DNS Response", desc: "Naver IP resolved to 125.209.222.141 from Cloudflare Resolver." } },
+            { no: 103, time: "0.0514", src: "192.168.0.229", dst: "125.209.222.141", proto: "TCP", len: 66, info: "50081 → 443 [SYN] Seq=0 Win=64240 Len=0 MSS=1460", detail: { app: "TCP Connection Request", desc: "Initiating TLS handshakes for web browsing Naver." } },
+            { no: 104, time: "0.0820", src: "192.168.0.229", dst: "142.251.151.2", proto: "UDP", len: 154, info: "50080 → 443 [QUIC] connection payload", detail: { app: "QUIC IETF Protocol", desc: "Secure Web connection streaming via Google high-speed UDP protocol." } },
+            { no: 105, time: "0.1102", src: "192.168.0.229", dst: "203.0.113.42", proto: "STUN", len: 98, info: "Binding Request (P2P Connectivity)", detail: { app: "STUN NAT traversal Protocol", desc: "Peer-to-Peer 1:1 Direct connection established with partner to bypass gateway firewall." } },
+            { no: 106, time: "0.1345", src: "203.0.113.42", dst: "192.168.0.229", proto: "uTP", len: 1200, info: "Direct P2P Data Block [uTorrent Packet]", detail: { app: "BitTorrent Micro Transport Protocol", desc: "Direct file chunk download exchange taking place with partner peer IP." } }
+        ];
+
+        // Init App on Load
+        window.onload = function() {
+            loadEmailPreset();
+            initWiresharkTable();
+            initLeafletMap();
+            // Start silent live packet ping animations or CLI inputs
+            document.getElementById('cmd-input').addEventListener('keydown', function(e) {
+                if(e.key === 'Enter') {
+                    handleCMDSubmit(this.value);
+                    this.value = '';
+                }
+            });
+        }
+
+        // Tab navigation handler
+        function switchTab(tabId) {
+            // Update active state class of tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = "tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left text-slate-300 hover:bg-slate-800/60 hover:text-white";
+            });
+            
+            // Highlight current tab button
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            if(activeBtn) {
+                activeBtn.className = "tab-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all duration-150 text-left bg-cyber-accent text-white font-medium shadow-md shadow-cyber-accent/10";
+            }
+
+            // Hide all tab sections, show current one
+            document.querySelectorAll('.tab-content').forEach(sect => {
+                sect.classList.add('hidden');
+            });
+            document.getElementById(`sect-${tabId}`).classList.remove('hidden');
+            
+            // Save state
+            state.currentTab = tabId;
+
+            // Fix leaflet map resize rendering issue on tab load
+            if(tabId === 'geoip-lookup' && state.map) {
+                setTimeout(() => {
+                    state.map.invalidateSize();
+                }, 150);
+            }
+        }
+
+        // Reset Simulator State
+        function resetSimulator() {
+            state.hasExtractedIP = false;
+            state.extractedIP = '';
+            state.terminalStep = 0;
+            state.quizScores = {q1: null, q2: null};
+            
+            document.getElementById('target-ip-badge').innerHTML = `<span>미획득 (헤더 확인 필요)</span> <i class="fa-solid fa-circle text-[8px] text-slate-500 animate-pulse"></i>`;
+            document.getElementById('analyzer-results-wrapper').classList.add('hidden');
+            document.getElementById('analyzer-input').value = '';
+            
+            // Clear CLI
+            document.getElementById('terminal-history').innerHTML = '';
+            document.getElementById('btn-tasklist').disabled = true;
+            document.getElementById('btn-tasklist').classList.add('opacity-50', 'cursor-not-allowed');
+
+            // Reset quiz forms
+            document.getElementById('quiz-feedback-1').classList.add('hidden');
+            document.getElementById('quiz-feedback-2').classList.add('hidden');
+            document.getElementById('quiz-score-num').innerText = "0 / 2";
+            
+            document.querySelectorAll('[class^="quiz-opt-"]').forEach(btn => {
+                btn.className = btn.className.replace(/bg-red-500\/20|border-red-500|bg-emerald-500\/20|border-emerald-500/, "bg-slate-900/60 border-slate-800");
+            });
+
+            // Set default preset
+            loadEmailPreset();
+            switchTab('overview');
+            showToast('실습 상태가 초기화되었습니다.', 'info');
+        }
+
+        // Helpers for Alert Toast (Replacing unsafe alert window)
+        function showToast(msg, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-6 right-6 z-[9999] px-4.5 py-3 rounded-xl shadow-2xl border flex items-center gap-2.5 text-xs font-semibold animate-slideUp text-white ${
+                type === 'success' ? 'bg-emerald-900/90 border-emerald-500' : 
+                type === 'error' ? 'bg-rose-950/90 border-rose-500' : 'bg-slate-900/95 border-slate-700'
+            }`;
+            
+            const icon = type === 'success' ? '<i class="fa-solid fa-circle-check text-emerald-400"></i>' : 
+                         type === 'error' ? '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>' : 
+                         '<i class="fa-solid fa-circle-info text-blue-400"></i>';
+                         
+            toast.innerHTML = `${icon} <span>${msg}</span>`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-all', 'duration-500');
+                setTimeout(() => toast.remove(), 500);
+            }, 3200);
+        }
+
+        // Clipboard copy compatibility helper
+        function copyToClipboard(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('클립보드에 헤더 원문이 복사되었습니다!');
+            } catch (err) {
+                showToast('복사 실패, 직접 텍스트를 선택 후 복사해 주세요.', 'error');
+            }
+        }
+
+        // Load Email preset values
+        function loadEmailPreset() {
+            const sel = document.getElementById('email-preset-select').value;
+            state.currentPreset = sel;
+            
+            const preset = emailPresets[sel];
+            document.getElementById('email-header-raw').value = preset.raw;
+            document.getElementById('preset-desc').innerText = preset.desc;
+            document.getElementById('quick-parse-result').classList.add('hidden');
+        }
+
+        // Highlight custom parsed fields inside raw view
+        function highlightReceivedHeaders() {
+            const txt = document.getElementById('email-header-raw').value;
+            const resBox = document.getElementById('quick-parse-result');
+            const resContent = document.getElementById('quick-parse-content');
+            
+            if (!txt.trim()) {
+                showToast('이메일 원문이 존재하지 않습니다!', 'error');
+                return;
+            }
+
+            resBox.classList.remove('hidden');
+            
+            if (state.currentPreset === 'preset1') {
+                resContent.innerHTML = `
+                    <div class="space-y-1 bg-slate-950 p-3 rounded border border-slate-800">
+                        <span class="text-[10px] text-amber-400 font-bold uppercase">포착된 Received:</span>
+                        <div class="code-font text-slate-300">Received: from mail-gateway.tor-relay.org (mail-gateway.tor-relay.org [185.220.101.5])</div>
+                        <p class="text-[11px] text-slate-400 mt-1">해외 우회 게이트웨이 IP인 <strong class="text-rose-400">185.220.101.5</strong>를 메일 수신 단계에서 확보했습니다.</p>
+                    </div>
+                    <div class="space-y-1 bg-slate-950 p-3 rounded border border-slate-800">
+                        <span class="text-[10px] text-amber-400 font-bold uppercase">보안 인증 Fail 내역:</span>
+                        <div class="text-rose-400 code-font">spf=fail, dkim=fail, dmarc=fail</div>
+                        <p class="text-[11px] text-slate-400 mt-1">인증 실패 내역으로 보아, 보낸이의 위조 사칭(스푸핑) 메일일 확률이 매우 높습니다.</p>
+                    </div>
+                `;
+            } else {
+                resContent.innerHTML = `
+                    <div class="space-y-1 bg-slate-950 p-3 rounded border border-slate-800">
+                        <span class="text-[10px] text-emerald-400 font-bold uppercase">포착된 X-Originating-IP:</span>
+                        <div class="code-font text-slate-300">X-Originating-IP: [125.209.222.141]</div>
+                        <p class="text-[11px] text-slate-400 mt-1">사용자가 브라우저에서 메일을 작성해 넘길 때 네이버가 수집한 실제 PC의 공인 IP 주소입니다.</p>
+                    </div>
+                    <div class="space-y-1 bg-slate-950 p-3 rounded border border-slate-800">
+                        <span class="text-[10px] text-emerald-400 font-bold uppercase">경유 서버 수신 내역:</span>
+                        <div class="text-slate-300 code-font">from ndre-back11.naver.com</div>
+                        <p class="text-[11px] text-slate-400 mt-1">네이버 SMTP 메일 발송 장치 IP이며, spf 및 dkim이 안전하게 PASS되었습니다.</p>
+                    </div>
+                `;
+            }
+            showToast('원문에서 핵심 증거 IP를 자동 탐색했습니다.');
+        }
+
+        // Bridge to tab 3 with current raw contents
+        function goToGoogleAnalyzer() {
+            const rawText = document.getElementById('email-header-raw').value;
+            document.getElementById('analyzer-input').value = rawText;
+            switchTab('google-analyzer');
+            showToast('헤더 텍스트를 분석 도구로 복사 전송했습니다.');
+        }
+
+        // Run Simulated Header Analysis
+        function runHeaderAnalysis() {
+            const inp = document.getElementById('analyzer-input').value;
+            if(!inp.trim()) {
+                showToast('분석할 헤더 데이터가 비어 있습니다.', 'error');
+                return;
+            }
+
+            // Display loading mock state briefly
+            showToast('구글 분석 엔진 에뮬레이팅 가동 중...', 'info');
+
+            setTimeout(() => {
+                const wrap = document.getElementById('analyzer-results-wrapper');
+                wrap.classList.remove('hidden');
+
+                const isPreset1 = inp.includes('tor-relay') || inp.includes('185.220.101.5');
+                const rows = document.getElementById('delay-table-rows');
+                
+                if (isPreset1) {
+                    state.extractedIP = '185.220.101.5';
+                    state.hasExtractedIP = true;
+
+                    // Fill Metadata
+                    document.getElementById('res-subject').innerText = "[중요] 회사 보안 계정 비정상 접속 안내";
+                    document.getElementById('res-from').innerText = "admin@sec-notices.xyz";
+                    document.getElementById('res-to').innerText = "victim@company-sec.co.kr";
+                    document.getElementById('res-date').innerText = "2026-06-22 01:19:54 (7시간 전)";
+                    
+                    // Delay Rows
+                    rows.innerHTML = `
+                        <tr class="border-b border-cyber-border/40 hover:bg-slate-800/30">
+                            <td class="p-3 font-semibold">Hop 2</td>
+                            <td class="p-3 code-font">mail-gateway.tor-relay.org <span class="text-rose-400">[185.220.101.5]</span></td>
+                            <td class="p-3 code-font">mx.google.com</td>
+                            <td class="p-3 text-amber-500 font-semibold">1분 33초 지연</td>
+                            <td class="p-3 text-slate-400">보안 우회 토르망 최종 출구 지점 수신</td>
+                        </tr>
+                        <tr class="border-b border-cyber-border/40 hover:bg-slate-800/30 bg-slate-950/20">
+                            <td class="p-3 font-semibold">Hop 1</td>
+                            <td class="p-3 code-font">internal-node-vpn.local (10.128.0.51)</td>
+                            <td class="p-3 code-font">mail-gateway.tor-relay.org</td>
+                            <td class="p-3 text-slate-400">0초 (최초 전송)</td>
+                            <td class="p-3 text-slate-400">최초 메일 전송 출발지 홉</td>
+                        </tr>
+                    `;
+
+                    // Security Badges
+                    document.getElementById('badge-spf').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-red-500 bg-red-950/40 text-red-400";
+                    document.getElementById('badge-spf').innerText = "FAIL";
+                    
+                    document.getElementById('badge-dkim').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-red-500 bg-red-950/40 text-red-400";
+                    document.getElementById('badge-dkim').innerText = "FAIL";
+
+                    document.getElementById('badge-dmarc').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-red-500 bg-red-950/40 text-red-400";
+                    document.getElementById('badge-dmarc').innerText = "FAIL";
+
+                } else {
+                    state.extractedIP = '125.209.222.141';
+                    state.hasExtractedIP = true;
+
+                    // Fill Metadata
+                    document.getElementById('res-subject').innerText = "요청하신 네트워크 보안 진단 실습 자료 송부드립니다.";
+                    document.getElementById('res-from').innerText = "sender@naver.com";
+                    document.getElementById('res-to').innerText = "master_analyst@korea.com";
+                    document.getElementById('res-date').innerText = "2026-06-21 23:09:50 (일요일)";
+
+                    // Delay Rows
+                    rows.innerHTML = `
+                        <tr class="border-b border-cyber-border/40 hover:bg-slate-800/30">
+                            <td class="p-3 font-semibold">Hop 2</td>
+                            <td class="p-3 code-font">ndre-back11.naver.com <span class="text-emerald-400">[125.209.222.141]</span></td>
+                            <td class="p-3 code-font">mx.daum.net</td>
+                            <td class="p-3 text-emerald-400">5초 (매우 빠름)</td>
+                            <td class="p-3 text-slate-400">포털 메일 서버 간 정상 중계 완료</td>
+                        </tr>
+                        <tr class="border-b border-cyber-border/40 hover:bg-slate-800/30 bg-slate-950/20">
+                            <td class="p-3 font-semibold">Hop 1</td>
+                            <td class="p-3 code-font">localhost (127.0.0.1)</td>
+                            <td class="p-3 code-font">ndre-back11.naver.com</td>
+                            <td class="p-3 text-slate-400">0초</td>
+                            <td class="p-3 text-slate-400">네이버 포털 웹 세션 최초 접수</td>
+                        </tr>
+                    `;
+
+                    // Security Badges
+                    document.getElementById('badge-spf').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-emerald-500 bg-emerald-950/40 text-emerald-400";
+                    document.getElementById('badge-spf').innerText = "PASS";
+                    
+                    document.getElementById('badge-dkim').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-emerald-500 bg-emerald-950/40 text-emerald-400";
+                    document.getElementById('badge-dkim').innerText = "PASS";
+
+                    document.getElementById('badge-dmarc').className = "px-2.5 py-1 text-xs font-bold rounded-lg border border-emerald-500 bg-emerald-950/40 text-emerald-400";
+                    document.getElementById('badge-dmarc').innerText = "PASS";
+                }
+
+                // Update targets
+                document.getElementById('extracted-ip-display').innerText = state.extractedIP;
+                document.getElementById('target-ip-badge').innerHTML = `<span class="font-bold code-font text-cyber-accent">${state.extractedIP}</span> <i class="fa-solid fa-circle text-[8px] text-emerald-500 animate-pulse"></i>`;
+                
+                showToast('헤더 파싱 완료! 최초 송신 기기 IP 정보가 추출되었습니다.');
+            }, 800);
+        }
+
+        // Bridge to GeoIP Tab from email analyses
+        function goToGeoIPLookupFromEmail() {
+            if(!state.extractedIP) return;
+            setGeoIPQuickInput(state.extractedIP);
+            switchTab('geoip-lookup');
+        }
+
+        // Terminal CLI simulation engine
+        function clearTerminal() {
+            document.getElementById('terminal-history').innerHTML = '';
+            state.terminalStep = 0;
+            document.getElementById('btn-tasklist').disabled = true;
+            document.getElementById('btn-tasklist').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        function runCommand(cmdText) {
+            document.getElementById('cmd-input').value = cmdText;
+            handleCMDSubmit(cmdText);
+        }
+
+        function handleCMDSubmit(cmd) {
+            const hist = document.getElementById('terminal-history');
+            const cleanCmd = cmd.trim();
+            if(!cleanCmd) return;
+
+            // Output command prompt
+            hist.innerHTML += `<div class="text-slate-200 mt-2"><span class="text-emerald-400">C:\\Users\\Forensic_Lab></span> ${cleanCmd}</div>`;
+
+            // Process command results
+            if (cleanCmd.includes('netstat -ano')) {
+                setTimeout(() => {
+                    hist.innerHTML += `
+<div class="text-slate-400 mt-1 whitespace-pre scrollbar-thin">
+  Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    192.168.0.229:50041    172.217.161.100:443    ESTABLISHED     10312
+  TCP    192.168.0.229:50045    142.251.151.2:443      ESTABLISHED     10312
+  <span class="text-emerald-400 font-bold">TCP    192.168.0.229:49231    203.0.113.42:6881      ESTABLISHED     12440</span>
+  TCP    192.168.0.229:50082    211.233.1.20:443       ESTABLISHED     8540
+</div>`;
+                    
+                    // Enable tasklist button
+                    state.terminalStep = 1;
+                    const btn = document.getElementById('btn-tasklist');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    
+                    // Set active target IP to P2P IP
+                    state.extractedIP = '203.0.113.42';
+                    document.getElementById('target-ip-badge').innerHTML = `<span class="font-bold code-font text-cyber-accent">203.0.113.42</span> <i class="fa-solid fa-circle text-[8px] text-amber-500 animate-pulse"></i>`;
+                    
+                    showToast('Netstat 조회 완료. PID 12440 커넥션이 탐지되었습니다.');
+                    scrollTerminal();
+                }, 500);
+            } 
+            else if (cleanCmd.includes('tasklist') && cleanCmd.includes('12440')) {
+                if(state.terminalStep < 1) {
+                    setTimeout(() => {
+                        hist.innerHTML += `<div class="text-rose-400 mt-1">에러: 조회할 PID 활성화 정보가 존재하지 않습니다. 먼저 netstat 조회를 수행하십시오.</div>`;
+                        scrollTerminal();
+                    }, 200);
+                    return;
+                }
+                setTimeout(() => {
+                    hist.innerHTML += `
+<div class="text-slate-400 mt-1 whitespace-pre">
+Image Name                     PID Session Name        Session#    Mem Usage
+========================= ======== ================ =========== ============
+<span class="text-emerald-400 font-bold">uTorrent.exe                 12440 Console                    1     32,412 K</span>
+</div>
+<div class="text-white bg-slate-900 p-2.5 rounded border border-emerald-500/30 mt-2">
+  <i class="fa-solid fa-circle-check text-emerald-400"></i> 포렌식 판독 입증 성공: <br>
+  상대방 공인 IP <strong class="text-amber-400">203.0.113.42</strong>는 현재 로컬 기기의 토렌트 클라이언트(<span class="text-emerald-400">uTorrent.exe</span>, PID 12440)를 통해 양방향 직접 데이터 P2P 통신이 수립되어 유동하고 있음을 최종 검증했습니다!
+</div>`;
+                    scrollTerminal();
+                    showToast('포렌식 프로토콜 분석 검증 완수!');
+                }, 500);
+            }
+            else {
+                setTimeout(() => {
+                    hist.innerHTML += `<div class="text-slate-500 mt-1">'${cleanCmd}'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는 배치 파일이 아닙니다.</div>`;
+                    scrollTerminal();
+                }, 100);
+            }
+        }
+
+        function scrollTerminal() {
+            const body = document.getElementById('cmd-body');
+            body.scrollTop = body.scrollHeight;
+        }
+
+        // Wireshark Interaction Logic
+        function initWiresharkTable() {
+            renderWiresharkRows(wiresharkPackets);
+            // Auto click No 104 as default layout example (from manual)
+            selectWiresharkPacket(104);
+        }
+
+        function renderWiresharkRows(list) {
+            const tbody = document.getElementById('wireshark-rows');
+            tbody.innerHTML = '';
+            
+            list.forEach(p => {
+                let rowBg = "hover:bg-blue-900/20 cursor-pointer border-b border-slate-900/60 transition-all ";
+                let txtColor = "text-slate-300";
+                
+                // Color codes like original wireshark
+                if(p.proto === 'DNS') { rowBg += 'bg-blue-950/40'; txtColor = "text-sky-300"; }
+                else if(p.proto === 'TCP') { rowBg += 'bg-indigo-950/30'; txtColor = "text-indigo-300"; }
+                else if(p.proto === 'UDP') { rowBg += 'bg-slate-900/60'; txtColor = "text-slate-300"; }
+                else if(p.proto === 'STUN') { rowBg += 'bg-purple-950/40'; txtColor = "text-purple-300"; }
+                else if(p.proto === 'uTP') { rowBg += 'bg-teal-950/40'; txtColor = "text-teal-300"; }
+
+                tbody.innerHTML += `
+                    <tr id="ws-row-${p.no}" onclick="selectWiresharkPacket(${p.no})" class="${rowBg} ${txtColor}">
+                        <td class="p-2">${p.no}</td>
+                        <td class="p-2">${p.time}</td>
+                        <td class="p-2">${p.src}</td>
+                        <td class="p-2">${p.dst}</td>
+                        <td class="p-2 font-bold">${p.proto}</td>
+                        <td class="p-2">${p.len}</td>
+                        <td class="p-2 select-all">${p.info}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function selectWiresharkPacket(no) {
+            // Remove previous active outline
+            document.querySelectorAll('[id^="ws-row-"]').forEach(row => {
+                row.classList.remove('border-l-4', 'border-l-blue-500', 'bg-blue-900/40');
+            });
+
+            // Highlight chosen packet row
+            const activeRow = document.getElementById(`ws-row-${no}`);
+            if(activeRow) {
+                activeRow.classList.add('border-l-4', 'border-l-blue-500', 'bg-blue-900/40');
+            }
+
+            const packet = wiresharkPackets.find(p => p.no === no);
+            if(!packet) return;
+
+            // Update details tree elements dynamically!
+            document.getElementById('layer-ip-src').innerText = packet.src;
+            document.getElementById('layer-ip-dst').innerText = packet.dst;
+            document.getElementById('layer-ip-src-desc').innerText = packet.src;
+            document.getElementById('layer-ip-dst-desc').innerText = packet.dst;
+
+            // Change ports mock based on proto
+            let srcPort = "50080", dstPort = "443";
+            if(packet.proto === 'DNS') { srcPort = "53112"; dstPort = "53 (Domain Name Service)"; }
+            else if(packet.proto === 'STUN') { srcPort = "3478"; dstPort = "58002"; }
+            else if(packet.proto === 'uTP') { srcPort = "6881"; dstPort = "49231"; }
+            
+            document.getElementById('layer-port-src').innerText = srcPort;
+            document.getElementById('layer-port-dst').innerText = dstPort;
+            document.getElementById('layer-port-src-desc').innerText = srcPort;
+            document.getElementById('layer-port-dst-desc').innerText = dstPort;
+
+            document.getElementById('layer-app-proto').innerText = packet.proto;
+            document.getElementById('layer-app-desc').innerText = `${packet.detail.app} payload: ${packet.detail.desc}`;
+
+            // Save IP destination as active target if it is external
+            if (packet.dst !== '192.168.0.229' && packet.dst !== '1.1.1.1') {
+                state.extractedIP = packet.dst;
+                document.getElementById('target-ip-badge').innerHTML = `<span class="font-bold code-font text-cyber-accent">${packet.dst}</span> <i class="fa-solid fa-circle text-[8px] text-teal-400 animate-pulse"></i>`;
+            } else if (packet.src !== '192.168.0.229') {
+                state.extractedIP = packet.src;
+                document.getElementById('target-ip-badge').innerHTML = `<span class="font-bold code-font text-cyber-accent">${packet.src}</span> <i class="fa-solid fa-circle text-[8px] text-teal-400 animate-pulse"></i>`;
+            }
+        }
+
+        function applyWiresharkFilter() {
+            const filt = document.getElementById('wireshark-filter').value.trim().toLowerCase();
+            state.wiresharkFilter = filt;
+
+            if(!filt) {
+                renderWiresharkRows(wiresharkPackets);
+                showToast('Wireshark 필터가 해제되었습니다.', 'info');
+                return;
+            }
+
+            const filtered = wiresharkPackets.filter(p => 
+                p.proto.toLowerCase().includes(filt) || 
+                p.src.includes(filt) || 
+                p.dst.includes(filt)
+            );
+
+            renderWiresharkRows(filtered);
+            showToast(`필터 '${filt}' 적용됨: ${filtered.length}개 패킷 포착`);
+            
+            if(filtered.length > 0) {
+                selectWiresharkPacket(filtered[0].no);
+            }
+        }
+
+        function goToGeoIPLookupFromPacket() {
+            if(!state.extractedIP) {
+                showToast('Wireshark에서 분석 획득한 IP가 없습니다. 패킷을 선택하십시오.', 'error');
+                return;
+            }
+            setGeoIPQuickInput(state.extractedIP);
+            switchTab('geoip-lookup');
+        }
+
+        // GeoIP Map & Lookup Logic
+        function initLeafletMap() {
+            // Map bounds init around East Asia/Global Default coordinates
+            state.map = L.map('map-canvas', {
+                center: [37.5665, 126.9780],
+                zoom: 13,
+                zoomControl: true,
+                attributionControl: false
+            });
+
+            // Modern Dark-theme vector map tiles
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(state.map);
+
+            // Default mock marker
+            state.mapMarker = L.marker([37.5665, 126.9780]).addTo(state.map)
+                .bindPopup('<b>분석 타겟 위치</b><br>IP: 203.0.113.42')
+                .openPopup();
+        }
+
+        function setGeoIPQuickInput(ip) {
+            document.getElementById('geoip-input').value = ip;
+            runGeoIPLookup();
+        }
+
+        function runGeoIPLookup() {
+            const ip = document.getElementById('geoip-input').value.trim();
+            if(!ip) {
+                showToast('조회할 IP 주소를 입력하십시오.', 'error');
+                return;
+            }
+
+            const data = geoipDatabase[ip];
+            
+            // Handle mock query resolution
+            if(data) {
+                document.getElementById('geo-ip-val').innerText = ip;
+                document.getElementById('geo-country').innerText = data.country;
+                document.getElementById('geo-city').innerText = data.city;
+                document.getElementById('geo-isp').innerText = data.isp;
+                document.getElementById('geo-org').innerText = data.org;
+                document.getElementById('geo-coords').innerText = data.coords.join(', ');
+                document.getElementById('whois-raw-box').innerText = data.whois;
+
+                // Update Leaflet GIS position
+                if(state.map) {
+                    state.map.setView(data.coords, 14);
+                    
+                    if(state.mapMarker) {
+                        state.mapMarker.setLatLng(data.coords);
+                        state.mapMarker.setPopupContent(`<b>IP: ${ip}</b><br>ISP: ${data.isp}<br>City: ${data.city}`).openPopup();
+                    } else {
+                        state.mapMarker = L.marker(data.coords).addTo(state.map)
+                            .bindPopup(`<b>IP: ${ip}</b><br>ISP: ${data.isp}`).openPopup();
+                    }
+                }
+                showToast(`IP ${ip} 위치 정보가 지도 상에 동기화되었습니다.`);
+            } else {
+                // Generate a random-looking mock GeoIP lookup on the fly for realistic feel
+                const lat = 35.0 + Math.random() * 5.0;
+                const lon = 127.0 + Math.random() * 2.0;
+                const genCoords = [lat.toFixed(4), lon.toFixed(4)];
+                
+                document.getElementById('geo-ip-val').innerText = ip;
+                document.getElementById('geo-country').innerText = "South Korea (KR)";
+                document.getElementById('geo-city').innerText = "Daejeon Metropolitan City";
+                document.getElementById('geo-isp').innerText = "LG Uplus Corporation";
+                document.getElementById('geo-org').innerText = "LTE/5G Mobile Network Hub";
+                document.getElementById('geo-coords').innerText = genCoords.join(', ');
+                
+                const whoisMock = `[WHOIS QUERY - ${ip}]
+# KISA WHOIS REGISTRY DATABASE
+
+IP Address Range: ${ip.split('.').slice(0, 3).join('.')}.0 - ${ip.split('.').slice(0, 3).join('.')}.255
+Netname:          LGUPLUS-MOBILE-INFRA
+Organization:     LG Uplus Corp.
+OrgType:          ISP Network Operator
+Country:          KR (Korea)
+State:            Daejeon-si
+Source:           KISA WHOIS`;
+                
+                document.getElementById('whois-raw-box').innerText = whoisMock;
+
+                if(state.map) {
+                    const numCoords = [parseFloat(genCoords[0]), parseFloat(genCoords[1])];
+                    state.map.setView(numCoords, 13);
+                    if(state.mapMarker) {
+                        state.mapMarker.setLatLng(numCoords);
+                        state.mapMarker.setPopupContent(`<b>IP: ${ip}</b><br>ISP: LG Uplus<br>City: Daejeon`).openPopup();
+                    }
+                }
+                showToast(`임의 대역 IP ${ip} 시뮬레이션 데이터를 생성해 매핑했습니다.`);
+            }
+        }
+
+        // Forensic Quiz Engine
+        function checkQuizAnswer(qNum, opt) {
+            const feedback = document.getElementById(`quiz-feedback-${qNum}`);
+            feedback.classList.remove('hidden');
+
+            const options = document.querySelectorAll(`.quiz-opt-${qNum}`);
+            options.forEach(btn => {
+                btn.className = btn.className.replace(/bg-red-500\/20|border-red-500|bg-emerald-500\/20|border-emerald-500/, "bg-slate-900/60 border-slate-800");
+            });
+
+            // Find clicked button to style it
+            const clickedBtn = Array.from(options).find(btn => btn.innerText.trim().startsWith(opt));
+
+            if(qNum === 1) {
+                if(opt === 'B') {
+                    state.quizScores.q1 = true;
+                    feedback.className = "mt-2 p-3 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+                    feedback.innerHTML = `<i class="fa-solid fa-check"></i> 정답입니다! 이메일 Received 필드는 아래(최하단)에서 위(최상단)로 중계 서버가 차례로 덧붙여지므로, 가장 아래쪽 홉이 메일 최초 출발 기기입니다.`;
+                    if(clickedBtn) clickedBtn.classList.add('bg-emerald-500/20', 'border-emerald-500');
+                } else {
+                    state.quizScores.q1 = false;
+                    feedback.className = "mt-2 p-3 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30";
+                    feedback.innerHTML = `<i class="fa-solid fa-xmark"></i> 오답입니다. 최상단 Received는 최종 메일 박스 서버가 받은 기록이고 최하단이 송신자 최초 메일 발송 장치 홉입니다.`;
+                    if(clickedBtn) clickedBtn.classList.add('bg-red-500/20', 'border-red-500');
+                }
+            } 
+            else if(qNum === 2) {
+                if(opt === 'C') {
+                    state.quizScores.q2 = true;
+                    feedback.className = "mt-2 p-3 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+                    feedback.innerHTML = `<i class="fa-solid fa-check"></i> 정답입니다! -o 옵션을 추가하여 실행 소유 프로세스 PID(Process ID)를 한눈에 볼 수 있으며, tasklist 명령과 연합해 어떤 프로그램인지 매핑할 수 있습니다.`;
+                    if(clickedBtn) clickedBtn.classList.add('bg-emerald-500/20', 'border-emerald-500');
+                } else {
+                    state.quizScores.q2 = false;
+                    feedback.className = "mt-2 p-3 rounded-lg text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30";
+                    feedback.innerHTML = `<i class="fa-solid fa-xmark"></i> 오답입니다. netstat -o 가 프로세스 매핑을 위한 Owning Process ID를 바인딩하는 공식 옵션입니다.`;
+                    if(clickedBtn) clickedBtn.classList.add('bg-red-500/20', 'border-red-500');
+                }
+            }
+
+            // Calculate score
+            let correctCount = 0;
+            if(state.quizScores.q1 === true) correctCount++;
+            if(state.quizScores.q2 === true) correctCount++;
+            
+            document.getElementById('quiz-score-num').innerText = `${correctCount} / 2`;
+            if (correctCount === 2) {
+                showToast('포렌식 자가 진단 퀴즈 만점 통과!');
+            }
+        }
+    </script>
+</body>
+</html>
